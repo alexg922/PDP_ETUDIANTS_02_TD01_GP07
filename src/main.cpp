@@ -1,4 +1,25 @@
-#include <Arduino.h>
+[16:35, 1/14/2026] +33 6 73 35 52 71: #include <Arduino.h>
+#include <Adafruit_Sensor.h>
+#include <DHT.h>
+#include <DHT_U.h>
+#include "WiFiClientSecure.h"
+#include <PubSubClient.h>
+
+const char* wifi_ssid = "Galaxy S20 FE 5G2A42";
+const char* wifi_password = "ethigang";
+const char* mqtt_server = "27cc61dbaffc4da08cd0081cabd8cf01.s2.eu.hivemq.cloud";
+int mqtt_port = 8883;
+const char* mqtt_user = "create_ece";
+const char* mqtt_pass = "create123A";
+const char* client_id = "TD01_GP07";
+
+static const char ca_cert[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE----- 
+MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
+TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
+cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4
+WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1U…
+[17:23, 1/14/2026] +33 6 73 35 52 71: #include <Arduino.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
@@ -117,6 +138,22 @@ void setup() {
 
   // Send data to the broker with MQTT
   // ...
+  if (mqtt_client.connected()) {
+
+    // Topics demandés
+    String topic_temp = String(client_id) + "/temp";
+    String topic_rh   = String(client_id) + "/relhum";
+
+    // Payloads (convertir float -> char*)
+    char payload_temp[16];
+    char payload_rh[16];
+    dtostrf(temp_measure, 1, 2, payload_temp);                 // ex: "26.90"
+    dtostrf(relative_humidity_measure, 1, 2, payload_rh);      // ex: "36.00"
+
+    mqtt_client.publish(topic_temp.c_str(), payload_temp);
+    mqtt_client.publish(topic_rh.c_str(), payload_rh);
+
+  } 
 
   Serial.println("Going to sleep for 5 seconds...");
   delay(100);
