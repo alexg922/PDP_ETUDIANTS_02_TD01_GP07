@@ -1,4 +1,4 @@
-[16:35, 1/14/2026] +33 6 73 35 52 71: #include <Arduino.h>
+#include <Arduino.h>
 #include <Adafruit_Sensor.h>
 #include <DHT.h>
 #include <DHT_U.h>
