@@ -5,16 +5,21 @@
 #include "WiFiClientSecure.h"
 #include <PubSubClient.h>
 
-const char* wifi_ssid = "MYWIFI";
+/*-----------------------------------------------------------------------------*/
+/* Configuration WiFi & MQTT */
+
+const char* wifi_ssid     = "MYWIFI";
 const char* wifi_password = "0123456789";
+
 const char* mqtt_server = "27cc61dbaffc4da08cd0081cabd8cf01.s2.eu.hivemq.cloud";
 int mqtt_port = 8883;
+
 const char* mqtt_user = "create_ece";
 const char* mqtt_pass = "create123A";
 const char* client_id = "TD01_GP07";
 
 /*-----------------------------------------------------------------------------*/
-
+/* Certificat CA pour la connexion TLS */
 
 static const char ca_cert[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
@@ -50,58 +55,97 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
 -----END CERTIFICATE-----
 )EOF";
 
-
 /*-----------------------------------------------------------------------------*/
+/* Capteur DHT11 */
 
-// Define the pins that we will use
 #define SENSOR 33
-#define LED 26
 #define DHTTYPE DHT11
-
 DHT_Unified dht(SENSOR, DHTTYPE);
 
+/*-----------------------------------------------------------------------------*/
+/* Clients WiFi et MQTT */
+
+WiFiClientSecure client;
+PubSubClient mqtt_client(client);
+
+/*-----------------------------------------------------------------------------*/
+/* Connexion WiFi */
+
+void connect_wifi() {
+  Serial.print("Connecting to WiFi");
+  WiFi.begin(wifi_ssid, wifi_password);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(200);
+  }
+  Serial.println("\nConnected.");
+}
+
+/*-----------------------------------------------------------------------------*/
+/* Connexion MQTT */
+
+bool connect_mqtt() {
+  Serial.print("Connecting to MQTT");
+  if (mqtt_client.connect(client_id, mqtt_user, mqtt_pass)) {
+    Serial.println(" connected.");
+    return true;
+  } else {
+    Serial.print(" failed, state=");
+    Serial.println(mqtt_client.state());
+    return false;
+  }
+}
+
+/*-----------------------------------------------------------------------------*/
+/* Setup */
+
 void setup() {
-  // Begin serial communication
   Serial.begin(9600);
   delay(100);
 
-  // Connect to WiFi
-  // ...
-  
-  // Configure MQTT server
-  // ...
+  // 1. Connexion au réseau WiFi
+  connect_wifi();
 
-  // Start listening to the DHT11
+  // 2. Configuration TLS et serveur MQTT
+  client.setCACert(ca_cert);
+  mqtt_client.setServer(mqtt_server, mqtt_port);
+
+  // 3. Connexion au broker MQTT
+  bool mqtt_ok = connect_mqtt();
+
+  // 4. Lecture des mesures du capteur DHT11
   dht.begin();
-
   sensors_event_t event;
 
-  // Get temperature event and print its value
-  float temp_measure = -999.0;
+  float temp = NAN;
+  float hum  = NAN;
+
   dht.temperature().getEvent(&event);
-  if (isnan(event.temperature)) {
-    Serial.println(F("Error reading temperature!"));
-  } else {
-    Serial.print(F("Temperature: "));
-    Serial.print(event.temperature);
-    Serial.println(F("°C"));
-    temp_measure = event.temperature;
+  if (!isnan(event.temperature)) {
+    temp = event.temperature;
   }
 
-  // Get humidity event and print its value.
-  float relative_humidity_measure = -999.0;
   dht.humidity().getEvent(&event);
-  if (isnan(event.relative_humidity)) {
-    Serial.println(F("Error reading humidity!"));
-  } else {
-    Serial.print(F("Humidity: "));
-    Serial.print(event.relative_humidity);
-    Serial.println(F("%"));
-    relative_humidity_measure = event.relative_humidity;
+  if (!isnan(event.relative_humidity)) {
+    hum = event.relative_humidity;
   }
 
-  // Send data to the broker with MQTT
-  // ...
+  // 5. Publication MQTT des mesures
+  if (mqtt_ok && !isnan(temp) && !isnan(hum)) {
+
+    char topicTemp[32];
+    char topicHum[32];
+    char payload[16];
+
+    snprintf(topicTemp, sizeof(topicTemp), "%s/temp", client_id);
+    snprintf(topicHum, sizeof(topicHum), "%s/relhum", client_id);
+
+    dtostrf(temp, 4, 2, payload);
+    mqtt_client.publish(topicTemp, payload);
+
+    dtostrf(hum, 4, 2, payload);
+    mqtt_client.publish(topicHum, payload);
+  }
 
   Serial.println("Going to sleep for 5 seconds...");
   delay(100);
@@ -109,5 +153,5 @@ void setup() {
 }
 
 void loop() {
-  // Not needed anymore, the function is kept so Platformio does not complain.
+  // Not used (deep sleep)
 }
